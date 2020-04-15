@@ -190,26 +190,31 @@ int main() {
   fread(wasmBytes, 1, wasmLen, wasmFile);
   fclose(wasmFile);
   
-  // init
+  // init wasm
   wasmer_memory_t *memory = create_wasmer_memory();
   wasmer_instance_t *instance = create_wasmer_instance(wasmBytes, wasmLen, memory);
   
-  // evaluate
+  // init opa
   wasmer_value_t opa_eval_ctx_new_params[] = { 0 };
   int opa_ctx_address = call_wasm_function_and_return_i32(instance, "opa_eval_ctx_new", opa_eval_ctx_new_params, 0);
   printf("opa_ctx_address: %x\n", opa_ctx_address); //TODO: remove after debugged
+  
+  char *initial_data = "{}";
+  int initial_data_addr = _loadJSON(instance, memory, initial_data, strlen(initial_data)); 
 
+  wasmer_value_t opa_eval_ctx_set_data_params[] = { {.tag = WASM_I32, .value.I32 = opa_ctx_address}, {.tag = WASM_I32, .value.I32 = initial_data_addr}  };
+  call_wasm_function_and_return_i32(instance, "opa_eval_ctx_set_data", opa_eval_ctx_set_data_params, 2);
+
+  // evaluate
   wasmer_value_t eval_params[] = { {.tag = WASM_I32, .value.I32 = opa_ctx_address} };
   call_wasm_function_and_return_i32(instance, "eval", eval_params, 1);
-  // ^^ failing
-  return 0;
 
-  // vv anything beneath this line is not relevant for the repro
   wasmer_value_t opa_eval_ctx_get_result_params[] = { {.tag = WASM_I32, .value.I32 = opa_ctx_address} };
   int opa_result_address = call_wasm_function_and_return_i32(instance, "opa_eval_ctx_get_result", opa_eval_ctx_get_result_params, 1);
   
-  _dumpJSON(instance, memory, opa_result_address);
-
+  char* res = _dumpJSON(instance, memory, opa_result_address);
+  printf("%s", res);
+  
   wasmer_memory_destroy(memory);
   //wasmer_import_func_destroy();
   wasmer_instance_destroy(instance);
